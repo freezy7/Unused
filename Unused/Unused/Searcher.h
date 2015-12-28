@@ -57,6 +57,10 @@
  */
 - (void)searcher:(Searcher *)searcher didFinishSearch:(NSArray *)results;
 
+- (void)searcher:(Searcher *)searcher didSearchAt:(NSInteger)index;
+
+- (void)searcher:(Searcher *)searcher allImageCount:(NSInteger)count;
+
 @end
 
 /**
@@ -124,6 +128,11 @@
  *  Include .swift files in the search
  */
 @property (nonatomic) BOOL swiftSearch;
+
+/**
+ *  Include .json files in the search
+ */
+@property (nonatomic) BOOL jsonSearch;
 
 /**
  *  Include image enum variant filtering in the search

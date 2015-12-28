@@ -85,6 +85,9 @@
     
     // Find all the image files in the folder
     _projectImageFiles = [FileUtil imageFilesInDirectory:searchPath];
+    if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:allImageCount:)]) {
+        [self.delegate searcher:self allImageCount:_projectImageFiles.count];
+    }
     
     NSArray *imageFiles = _projectImageFiles;
     if (self.enumFilter) {
@@ -93,7 +96,7 @@
         // Trying to filter image names like: "Section_0.png", "Section_1.png", etc (these names can possibly be created by [NSString stringWithFormat:@"Section_%d", (int)] constructions) to just "Section_" item
         for (NSInteger index = 0, count = [mutablePngFiles count]; index < count; index++) {
             NSString *imageName = [mutablePngFiles objectAtIndex:index];
-            NSRegularExpression *regExp = [NSRegularExpression regularExpressionWithPattern:@"[_-].*\\d.*.png" options:NSRegularExpressionCaseInsensitive error:nil];
+            NSRegularExpression *regExp = [NSRegularExpression regularExpressionWithPattern:@"[_-]\\d.*.(png|jpg)" options:NSRegularExpressionCaseInsensitive error:nil];
             NSString *newImageName = [regExp stringByReplacingMatchesInString:imageName options:NSMatchingReportProgress range:NSMakeRange(0, [imageName length]) withTemplate:@""];
             if (newImageName) {
                 [mutablePngFiles replaceObjectAtIndex:index withObject:newImageName];
@@ -133,21 +136,35 @@
                 
                 // Check that it's not a retina image or reserved image name
                 BOOL isValidImage = [self isValidImageAtPath:imagePath];
+                BOOL isSearchCancelled = NO;
+                
                 if (isValidImage) {
                     // Grab the file name
                     NSString *imageName = [imagePath lastPathComponent];
-
+                    
                     // Settings items
                     NSArray *settingsItems = [self searchSettings];
-                    BOOL isSearchCancelled = NO;
+                    
+                    //判断特殊的bundle
+                    NSRange chelunRange = [imagePath rangeOfString:@"CLResourceImage.bundle"];
+                    if (chelunRange.location != NSNotFound) {
+                        NSArray *pathArr = [imagePath componentsSeparatedByString:@"/"];
+                        NSInteger count = [pathArr count];
+                        if (count) {
+                            imageName = [NSString stringWithFormat:@"%@/%@",[pathArr objectAtIndex:count - 2],pathArr.lastObject];
+                        }
+                    }
+                    
+                    if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:didSearchAt:)]) {
+                        [self.delegate searcher:self didSearchAt:idx];
+                    }
+                    
                     for (NSString *extension in settingsItems) {
-     
                         // Run the check
                         if (!isSearchCancelled && [self occurancesOfImageNamed:imageName atDirectory:searchPath inFileExtensionType:extension]) {
                             isSearchCancelled = YES;
                         }
                     }
-                    
                     // Is it not found - update results
                     if (!isSearchCancelled)
                         dispatch_async(dispatch_get_main_queue(), ^{
@@ -175,6 +192,25 @@
             [_fileData removeAllObjects];
         });
     });
+}
+
+#pragma mark - 搜索检查双倍图
+
+- (NSString *)replaceRetinaName:(NSString *)imageName With:(NSString *)str
+{
+    NSString *newName = nil;
+    for (NSString *retinaRangeString in [self supportedRetinaImagePostfixes]) {
+        NSRange retinaRange = [imageName rangeOfString:retinaRangeString];
+        if (retinaRange.location != NSNotFound) {
+            // Add to retina image paths
+            newName = [imageName stringByReplacingCharactersInRange:retinaRange withString:str];
+            break;
+        }
+    }
+    if (newName == nil) {
+        newName = imageName;
+    }
+    return [newName stringByDeletingPathExtension];
 }
 
 - (NSArray *)searchSettings {
@@ -220,6 +256,9 @@
     if (self.swiftSearch) {
         [settings addObject:@"swift"];
     }
+    if (self.jsonSearch) {
+        [settings addObject:@"json"];
+    }
 
     return settings;
 }
@@ -232,13 +271,14 @@
     // Grab image name
     NSString *imageName = [imagePath lastPathComponent];
     
-    // Check if is retina
-    for (NSString *retinaRangeString in [self supportedRetinaImagePostfixes]) {
-        NSRange retinaRange = [imageName rangeOfString:retinaRangeString];
-        if (retinaRange.location != NSNotFound) {
-            return NO;
-        }
-    }
+    //不判断双倍图与否
+//    // Check if is retina
+//    for (NSString *retinaRangeString in [self supportedRetinaImagePostfixes]) {
+//        NSRange retinaRange = [imageName rangeOfString:retinaRangeString];
+//        if (retinaRange.location != NSNotFound) {
+//            return YES;
+//        }
+//    }
     
     // Check for reserved names
     BOOL isThirdPartyBundle = [imagePath rangeOfString:@".bundle"].length > 0;
@@ -258,8 +298,8 @@
         [task setLaunchPath: @"/bin/sh"];
         
         // Setup the call
-        NSString *cmd = [NSString stringWithFormat:@"for filename in `find %@ -name '*.%@'`; do cat $filename 2>/dev/null | grep -o %@ ; done", directoryPath, extension, [imageName stringByDeletingPathExtension]];
-        NSLog(@"%@", cmd);
+        NSString *cmd = [NSString stringWithFormat:@"for filename in `find %@ -name '*.%@'`; do cat $filename 2>/dev/null | grep -o %@ ; done", directoryPath, extension, [self replaceRetinaName:imageName With:@""]];
+//        NSLog(@"%@", cmd);
         NSArray *argvals = [NSArray arrayWithObjects: @"-c", cmd, nil];
         [task setArguments: argvals];
         

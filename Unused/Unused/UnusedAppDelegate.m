@@ -29,6 +29,9 @@
 #import "FileUtil.h"
 
 @interface UnusedAppDelegate () <SearcherDelegate>
+{
+    NSInteger _allCount;
+}
 
 @property (nonatomic, strong) NSMutableArray *results;
 @property (nonatomic, strong) Searcher *searcher;
@@ -147,6 +150,7 @@ static NSString *const kTableColumnImageShortName = @"ImageShortName";
     self.searcher.plistSearch = [self.plistCheckbox state];
     self.searcher.cssSearch = [self.cssCheckbox state];
     self.searcher.swiftSearch = [self.swiftCheckbox state];
+    self.searcher.jsonSearch = [self.jsonCheckbox state];
     self.searcher.enumFilter = [self.enumCheckbox state];
     
     // Start the search
@@ -198,6 +202,7 @@ static NSString *const kTableColumnImageShortName = @"ImageShortName";
     [_plistCheckbox setEnabled:state];
     [_cssCheckbox setEnabled:state];
     [_swiftCheckbox setEnabled:state];
+    [_jsonCheckbox setEnabled:state];
     [_browseButton setEnabled:state];
     [_pathTextField setEnabled:state];
     [_exportButton setHidden:!state];
@@ -231,6 +236,7 @@ static NSString *const kTableColumnImageShortName = @"ImageShortName";
 
 #pragma mark - <SearcherDelegate>
 - (void)searcherDidStartSearch:(Searcher *)searcher {
+    
 }
 
 - (void)searcher:(Searcher *)searcher didFindUnusedImage:(NSString *)imagePath {
@@ -259,6 +265,17 @@ static NSString *const kTableColumnImageShortName = @"ImageShortName";
     
     // Enable the ui
     [self setUIEnabled:YES];
+}
+
+- (void)searcher:(Searcher *)searcher allImageCount:(NSInteger)count
+{
+    _allCount = count;
+    [self.statusLabel setStringValue:[NSString stringWithFormat:@"%zd",count]];
+}
+
+-(void)searcher:(Searcher *)searcher didSearchAt:(NSInteger)index
+{
+    [self.statusLabel setStringValue:[NSString stringWithFormat:@"%zd/%zd",_allCount,index]];
 }
 
 @end

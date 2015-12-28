@@ -124,6 +124,11 @@
 @property (assign) IBOutlet NSButton *swiftCheckbox;
 
 /**
+ *  The .json file checkbox
+ */
+@property (assign) IBOutlet NSButton *jsonCheckbox;
+
+/**
  *  The enum checkbox
  */
 @property (assign) IBOutlet NSButton *enumCheckbox;
