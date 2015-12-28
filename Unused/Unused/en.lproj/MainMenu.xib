@@ -747,7 +747,7 @@
                     <button id="546">
                         <rect key="frame" x="270" y="359" width="51" height="18"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                        <buttonCell key="cell" type="check" title=".mm" bezelStyle="regularSquare" imagePosition="left" alignment="left" inset="2" id="547">
+                        <buttonCell key="cell" type="check" title=".mm" bezelStyle="regularSquare" imagePosition="left" alignment="left" state="on" inset="2" id="547">
                             <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
                             <font key="font" metaFont="system"/>
                         </buttonCell>
@@ -771,7 +771,7 @@
                     <button id="QER-xX-fPx">
                         <rect key="frame" x="79" y="385" width="54" height="18"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                        <buttonCell key="cell" type="check" title=".h" bezelStyle="regularSquare" imagePosition="left" alignment="left" state="on" inset="2" id="FDA-fe-mzb">
+                        <buttonCell key="cell" type="check" title=".h" bezelStyle="regularSquare" imagePosition="left" alignment="left" inset="2" id="FDA-fe-mzb">
                             <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
                             <font key="font" metaFont="system"/>
                         </buttonCell>
@@ -795,7 +795,7 @@
                     <button id="QOK-sA-faH">
                         <rect key="frame" x="79" y="323" width="116" height="18"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                        <buttonCell key="cell" type="check" title="Enum Variants" bezelStyle="regularSquare" imagePosition="left" alignment="left" inset="2" id="HRa-bP-KXz">
+                        <buttonCell key="cell" type="check" title="Enum Variants" bezelStyle="regularSquare" imagePosition="left" alignment="left" state="on" inset="2" id="HRa-bP-KXz">
                             <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
                             <font key="font" metaFont="system"/>
                         </buttonCell>
@@ -954,6 +954,28 @@
                             <font key="font" metaFont="system"/>
                         </buttonCell>
                     </button>
+                    <button id="9Kk-2n-Z8R">
+                        <rect key="frame" x="228" y="323" width="116" height="18"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="check" title="Unused Class" bezelStyle="regularSquare" imagePosition="left" alignment="left" inset="2" id="1rU-KP-pj8">
+                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="unusedClassCheckBox:" target="494" id="UKM-Lj-IPD"/>
+                        </connections>
+                    </button>
+                    <button verticalHuggingPriority="750" id="r88-3W-Y1a">
+                        <rect key="frame" x="386" y="311" width="96" height="32"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="push" title="import" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="uBk-oH-hsB">
+                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="importButtonAction:" target="494" id="dB2-5o-nS8"/>
+                        </connections>
+                    </button>
                 </subviews>
             </view>
             <point key="canvasLocation" x="1166" y="634"/>
@@ -978,6 +1000,7 @@
                 <outlet property="searchButton" destination="550" id="590"/>
                 <outlet property="statusLabel" destination="563" id="565"/>
                 <outlet property="swiftCheckbox" destination="ZF6-th-YGA" id="3ie-zo-Iqa"/>
+                <outlet property="unusedCheckbox" destination="9Kk-2n-Z8R" id="XLg-gg-ps9"/>
                 <outlet property="window" destination="371" id="532"/>
                 <outlet property="xibCheckbox" destination="544" id="568"/>
             </connections>

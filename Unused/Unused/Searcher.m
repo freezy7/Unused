@@ -32,6 +32,7 @@
     
     // Arrays
     NSArray *_projectImageFiles;
+    NSArray *_projectClassFiles;
     NSMutableArray *_results;
     NSMutableArray *_retinaImagePaths;
     
@@ -41,6 +42,8 @@
     // Stores the file data to avoid re-reading files, using a lock to make it thread-safe.
     NSMutableDictionary *_fileData;
     NSLock *_fileDataLock;
+    
+    NSInteger _enterCount;
 }
 
 @end
@@ -58,6 +61,8 @@
         
         // Setup the queue
         _queue = [[NSOperationQueue alloc] init];
+        _queue.maxConcurrentOperationCount = 10;
+        _queue.name = @"searchImage";
         
         // Setup data lock
         _fileData = [NSMutableDictionary new];
@@ -66,30 +71,172 @@
     return self;
 }
 
-- (void)start {
- 
-    // Start the search
-    NSInvocationOperation *searchOperation = [[NSInvocationOperation alloc] initWithTarget:self selector:@selector(runImageSearch:) object:self.projectPath];
-    [_queue addOperation:searchOperation];
+- (void)startSearchImage
+{
+    _enterCount = 0;
+    // Find all the image files in the folder
+    _projectImageFiles = [FileUtil imageFilesInDirectory:self.projectPath];
+    if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:allFileCount:)]) {
+        [self.delegate searcher:self allFileCount:_projectImageFiles.count];
+    }
+//    /Users/wheel/chelun/CheLun
+    NSMutableArray *nameArray = [NSMutableArray array];
+    
+    for (NSString *imagePath in _projectImageFiles) {
+        NSString *imageName = [imagePath lastPathComponent];
+        if (![imageName isEqualToString:@""]&&imageName) {
+            NSString *firstWord = [imageName substringWithRange:NSMakeRange(0, 2)];
+            if (![nameArray containsObject:firstWord]) {
+                [nameArray addObject:firstWord];
+            }
+        }
+    }
+    
+    for (NSString *preName in nameArray) {
+        NSMutableArray *sepArray = [NSMutableArray array];
+        for (NSString *imagePath in _projectImageFiles) {
+            NSString *imageName = [imagePath lastPathComponent];
+            if ([imageName hasPrefix:preName]) {
+                [sepArray addObject:imagePath];
+            }
+            
+        }
+        NSInvocationOperation *searchOperation = [[NSInvocationOperation alloc] initWithTarget:self selector:@selector(runImageSearch:) object:sepArray];
+        [_queue addOperation:searchOperation];
+        
+        [_queue addObserver:self forKeyPath:@"operationCount" options:0 context:nil];
+    }
 }
 
-- (void)stop {
-#warning implement me!
+- (void)startSearchClass
+{
+    _projectClassFiles = [FileUtil classFilesInDirectory:self.projectPath];
+    if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:allFileCount:)]) {
+        [self.delegate searcher:self allFileCount:_projectClassFiles.count];
+    }
+    
+    NSMutableArray *nameArray = [NSMutableArray array];
+    
+    for (NSString *classPath in _projectClassFiles) {
+        NSString *className = [classPath lastPathComponent];
+        if (![className isEqualToString:@""]&&className) {
+            NSString *firstWord = [className substringWithRange:NSMakeRange(0, 4)];
+            if (![nameArray containsObject:firstWord]) {
+                [nameArray addObject:firstWord];
+            }
+        }
+    }
+    
+    for (NSString *preName in nameArray) {
+        NSMutableArray *sepArray = [NSMutableArray array];
+        for (NSString *classPath in _projectClassFiles) {
+            NSString *imageName = [classPath lastPathComponent];
+            if ([imageName hasPrefix:preName]) {
+                [sepArray addObject:classPath];
+            }
+            
+        }
+        NSInvocationOperation *searchOperation = [[NSInvocationOperation alloc] initWithTarget:self selector:@selector(runClassSearch:) object:sepArray];
+        [_queue addOperation:searchOperation];
+        
+        [_queue addObserver:self forKeyPath:@"operationCount" options:0 context:nil];
+    }
 }
 
-- (void)runImageSearch:(NSString *)searchPath {
+
+#pragma mark - 监听线程结束
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
+{
+    if (object == _queue && [keyPath isEqualToString:@"operationCount"])
+    {
+        if (0 == _queue.operationCount)
+        {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSLog(@"_queue finished");
+                [_results sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
+                
+                if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:didFinishSearch:)]) {
+                    [self.delegate searcher:self didFinishSearch:_results];
+                }
+                
+                isSearching = NO;
+                [_fileData removeAllObjects];
+            });
+        }
+    }
+}
+
+- (void)stop
+{
+#warning 待确认
+//    [_queue cancelAllOperations];
+//    [_results sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
+//    
+//    if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:didFinishSearch:)]) {
+//        [self.delegate searcher:self didFinishSearch:_results];
+//    }
+//    
+//    isSearching = NO;
+//    [_fileData removeAllObjects];
+}
+
+- (void)runClassSearch:(NSArray *)searchClasses
+{
     // Start the search
     if (self.delegate && [self.delegate respondsToSelector:@selector(searcherDidStartSearch:)]) {
         [self.delegate searcherDidStartSearch:self];
     }
     
-    // Find all the image files in the folder
-    _projectImageFiles = [FileUtil imageFilesInDirectory:searchPath];
-    if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:allImageCount:)]) {
-        [self.delegate searcher:self allImageCount:_projectImageFiles.count];
+    NSArray *classFiles = searchClasses;
+    
+    [classFiles enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
+        NSString *imagePath = (NSString *)obj;
+        
+        _enterCount ++;
+        
+        BOOL isImagePathEmpty = [imagePath isEqualToString:@""];
+        if (!isImagePathEmpty) {
+            
+            BOOL isSearchCancelled = NO;
+            
+            // Grab the file name
+            NSString *imageName = [imagePath lastPathComponent];
+            
+            // Settings items
+            NSArray *settingsItems = [self searchSettings];
+            
+            if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:didSearchAt:remainOperation:)]) {
+                [self.delegate searcher:self didSearchAt:_enterCount remainOperation:_queue.operationCount];
+            }
+            
+            for (NSString *extension in settingsItems) {
+                // Run the check
+                if (!isSearchCancelled && [self occurancesOfClassNamed:imageName atDirectory:self.projectPath inFileExtensionType:extension]) {
+                    isSearchCancelled = YES;
+                }
+            }
+            NSLog(@"------ %zd",_enterCount);
+            // Is it not found - update results
+            if (!isSearchCancelled)
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    
+                    if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:didFindUnusedImage:)]) {
+                        [self.delegate searcher:self didFindUnusedImage:imagePath];
+                    }
+                    
+                });
+        }
+    }];
+}
+
+- (void)runImageSearch:(NSArray *)searchImages
+{
+    // Start the search
+    if (self.delegate && [self.delegate respondsToSelector:@selector(searcherDidStartSearch:)]) {
+        [self.delegate searcherDidStartSearch:self];
     }
     
-    NSArray *imageFiles = _projectImageFiles;
+    NSArray *imageFiles = searchImages;
     if (self.enumFilter) {
         NSMutableArray *mutablePngFiles = [NSMutableArray arrayWithArray:imageFiles];
         
@@ -109,89 +256,73 @@
     
     // Setup all the retina image firstly
     // DISCUSSION: performance vs extensibility. Is a n^2 loop better for extensibility or is a large if statement with better effency
-    for (NSString *pngPath in _projectImageFiles) {
-        NSString *imageName = [pngPath lastPathComponent];
-        
-        // Does the image have a retina version
-        for (NSString *retinaRangeString in [self supportedRetinaImagePostfixes]) {
-            NSRange retinaRange = [imageName rangeOfString:retinaRangeString];
-            if (retinaRange.location != NSNotFound) {
-                // Add to retina image paths
-                [_retinaImagePaths addObject:pngPath];
-                break;
-            }
-        }
-    }
-    
-    dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
-    dispatch_group_t group = dispatch_group_create();
+//    for (NSString *pngPath in _projectImageFiles) {
+//        NSString *imageName = [pngPath lastPathComponent];
+//        
+//        // Does the image have a retina version
+//        for (NSString *retinaRangeString in [self supportedRetinaImagePostfixes]) {
+//            NSRange retinaRange = [imageName rangeOfString:retinaRangeString];
+//            if (retinaRange.location != NSNotFound) {
+//                // Add to retina image paths
+//                [_retinaImagePaths addObject:pngPath];
+//                break;
+//            }
+//        }
+//    }
     
     // Now loop and check
     [imageFiles enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
-        dispatch_group_async(group, queue, ^{
-            NSString *imagePath = (NSString *)obj;
+        NSString *imagePath = (NSString *)obj;
+        
+        _enterCount ++;
+        
+        BOOL isImagePathEmpty = [imagePath isEqualToString:@""];
+        if (!isImagePathEmpty) {
             
-            BOOL isImagePathEmpty = [imagePath isEqualToString:@""];
-            if (!isImagePathEmpty) {
+            // Check that it's not a retina image or reserved image name
+            BOOL isValidImage = [self isValidImageAtPath:imagePath];
+            BOOL isSearchCancelled = NO;
+            
+            if (isValidImage) {
+                // Grab the file name
+                NSString *imageName = [imagePath lastPathComponent];
                 
-                // Check that it's not a retina image or reserved image name
-                BOOL isValidImage = [self isValidImageAtPath:imagePath];
-                BOOL isSearchCancelled = NO;
+                // Settings items
+                NSArray *settingsItems = [self searchSettings];
                 
-                if (isValidImage) {
-                    // Grab the file name
-                    NSString *imageName = [imagePath lastPathComponent];
-                    
-                    // Settings items
-                    NSArray *settingsItems = [self searchSettings];
-                    
-                    //判断特殊的bundle
-                    NSRange chelunRange = [imagePath rangeOfString:@"CLResourceImage.bundle"];
-                    if (chelunRange.location != NSNotFound) {
-                        NSArray *pathArr = [imagePath componentsSeparatedByString:@"/"];
-                        NSInteger count = [pathArr count];
-                        if (count) {
-                            imageName = [NSString stringWithFormat:@"%@/%@",[pathArr objectAtIndex:count - 2],pathArr.lastObject];
-                        }
+                //判断特殊的bundle
+                NSRange chelunRange = [imagePath rangeOfString:@"CLResourceImage.bundle"];
+                if (chelunRange.location != NSNotFound) {
+                    NSArray *pathArr = [imagePath componentsSeparatedByString:@"/"];
+                    NSInteger count = [pathArr count];
+                    if (count) {
+                        imageName = [NSString stringWithFormat:@"%@/%@",[pathArr objectAtIndex:count - 2],pathArr.lastObject];
                     }
-                    
-                    if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:didSearchAt:)]) {
-                        [self.delegate searcher:self didSearchAt:idx];
-                    }
-                    
-                    for (NSString *extension in settingsItems) {
-                        // Run the check
-                        if (!isSearchCancelled && [self occurancesOfImageNamed:imageName atDirectory:searchPath inFileExtensionType:extension]) {
-                            isSearchCancelled = YES;
-                        }
-                    }
-                    // Is it not found - update results
-                    if (!isSearchCancelled)
-                        dispatch_async(dispatch_get_main_queue(), ^{
-                            
-                            if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:didFindUnusedImage:)]) {
-                                [self.delegate searcher:self didFindUnusedImage:imagePath];
-                            }
-                            
-                        });
                 }
+                
+                if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:didSearchAt:remainOperation:)]) {
+                    [self.delegate searcher:self didSearchAt:_enterCount remainOperation:_queue.operationCount];
+                }
+                
+                for (NSString *extension in settingsItems) {
+                    // Run the check
+                    if (!isSearchCancelled && [self occurancesOfImageNamed:imageName atDirectory:self.projectPath inFileExtensionType:extension]) {
+                        isSearchCancelled = YES;
+                    }
+                }
+                NSLog(@"------ %zd",_enterCount);
+                // Is it not found - update results
+                if (!isSearchCancelled)
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        
+                        if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:didFindUnusedImage:)]) {
+                            [self.delegate searcher:self didFindUnusedImage:imagePath];
+                        }
+                        
+                    });
             }
-        });
+        }
     }];
-    
-    dispatch_group_notify(group, queue, ^{
-        dispatch_async(dispatch_get_main_queue(), ^{
-
-            [_results sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
-            
-            if (self.delegate && [self.delegate respondsToSelector:@selector(searcher:didFinishSearch:)]) {
-                [self.delegate searcher:self didFinishSearch:_results];
-            }
-            
-            isSearching = NO;
-            [_fileData removeAllObjects];
-        });
-    });
 }
 
 #pragma mark - 搜索检查双倍图
@@ -289,9 +420,49 @@
     return !(isThirdPartyBundle && isNamedDefault && isNamedIcon && isUniversalImage);
 }
 
+- (int)occurancesOfClassNamed:(NSString *)className atDirectory:(NSString *)directoryPath inFileExtensionType:(NSString *)extension {
+    [_fileDataLock lock];
+    NSData *data = [_fileData objectForKey:directoryPath];
+    if (!data) {
+        NSTask *task = [[NSTask alloc] init];
+        [task setLaunchPath: @"/bin/sh"];
+        
+        NSString *newClassMatch = [className stringByDeletingPathExtension];
+        // Setup the call
+        NSString *cmd = [NSString stringWithFormat:@"for filename in `find %@ -name '*.%@'`; do cat $filename 2>/dev/null | grep -o '%@' ; done", directoryPath, extension, [NSString stringWithFormat:@"%@ all",newClassMatch]];
+        NSLog(@"%@", cmd);
+        NSArray *argvals = [NSArray arrayWithObjects: @"-c", cmd, nil];
+        [task setArguments: argvals];
+        
+        NSPipe *pipe = [NSPipe pipe];
+        [task setStandardOutput: pipe];
+        [task launch];
+        
+        // Read the response
+        NSFileHandle *file = [pipe fileHandleForReading];
+        data = [file readDataToEndOfFile];
+        NSString *key = [NSString stringWithFormat:@"%@/%@",directoryPath, className];
+        
+        [_fileData setObject:data forKey:key];
+    }
+    
+    [_fileDataLock unlock];
+    
+    NSString *string = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    
+    // Calculate the count
+    NSScanner *scanner = [NSScanner scannerWithString:string];
+    NSCharacterSet *newline = [NSCharacterSet newlineCharacterSet];
+    int count = 0;
+    while ([scanner scanUpToCharactersFromSet:newline intoString:nil]) {
+        count++;
+    }
+    
+    return count;
+}
+
 - (int)occurancesOfImageNamed:(NSString *)imageName atDirectory:(NSString *)directoryPath inFileExtensionType:(NSString *)extension {
     [_fileDataLock lock];
-    
     NSData *data = [_fileData objectForKey:directoryPath];
     if (!data) {
         NSTask *task = [[NSTask alloc] init];

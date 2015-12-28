@@ -67,7 +67,9 @@ static NSString *const kTableColumnImageShortName = @"ImageShortName";
 }
 
 #pragma mark - Actions
-- (IBAction)browseButtonSelected:(id)sender {
+
+- (IBAction)browseButtonSelected:(id)sender
+{
     // Show an open panel
     NSOpenPanel *openPanel = [NSOpenPanel openPanel];
     [openPanel setCanChooseDirectories:YES];
@@ -81,7 +83,70 @@ static NSString *const kTableColumnImageShortName = @"ImageShortName";
     }
 }
 
-- (IBAction)exportButtonSelected:(id)sender {
+- (IBAction)unusedClassCheckBox:(NSButton *)btn
+{
+    if (btn.state) {
+        self.headerCheckbox.state = YES;
+        self.mmCheckbox.state = YES;
+        self.mmCheckbox.state = YES;
+        self.swiftCheckbox.state = YES;
+        
+        self.sbCheckbox.state = NO;
+        self.htmlCheckbox.state = NO;
+        self.cssCheckbox.state = NO;
+        self.cppCheckbox.state = NO;
+        self.xibCheckbox.state = NO;
+        self.jsonCheckbox.state = NO;
+        self.plistCheckbox.state = NO;
+    } else {
+        self.headerCheckbox.state = NO;
+        self.mmCheckbox.state = YES;
+        self.mmCheckbox.state = YES;
+        self.swiftCheckbox.state = YES;
+        
+        self.sbCheckbox.state = YES;
+        self.htmlCheckbox.state = NO;
+        self.cssCheckbox.state = NO;
+        self.cppCheckbox.state = NO;
+        self.xibCheckbox.state = YES;
+        self.jsonCheckbox.state = YES;
+        self.plistCheckbox.state = YES;
+    }
+}
+
+- (IBAction)importButtonAction:(id)sender
+{
+    // Show an open panel
+    NSOpenPanel *openPanel = [NSOpenPanel openPanel];
+    [openPanel setCanChooseDirectories:YES];
+    [openPanel setCanChooseFiles:YES];
+    
+    BOOL okButtonPressed = ([openPanel runModal] == NSModalResponseOK);
+    if (okButtonPressed) {
+        // Update the path text field
+        NSString *path = [[openPanel directoryURL] path];
+        
+        NSData *data = [NSData dataWithContentsOfFile:path];
+        
+        NSError *error;
+        
+        NSString *textFileContents = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:&error];
+        if (textFileContents == nil) {
+            NSLog(@"Error reading text file. %@", [error localizedFailureReason]);
+        }
+        NSArray *lines = [textFileContents componentsSeparatedByString:@"\n"];
+        
+    }
+    
+
+}
+
+- (IBAction)exportButtonSelected:(id)sender
+{
+//    if (!self.searchButton.enabled) {
+//        [self.searcher stop];
+//        return;
+//    }
     NSSavePanel *save = [NSSavePanel savePanel];
     [save setAllowedFileTypes:[NSArray arrayWithObject:@"txt"]];
     
@@ -111,30 +176,27 @@ static NSString *const kTableColumnImageShortName = @"ImageShortName";
     }
 }
 
-- (IBAction)startSearch:(id)sender {
+- (IBAction)startSearch:(id)sender
+{
     // Check if user has selected or entered a path
-	NSString *projectPath = [self.pathTextField stringValue];
-	BOOL isPathEmpty = [projectPath isEqualToString:@""];
+    NSString *projectPath = [self.pathTextField stringValue];
+    BOOL isPathEmpty = [projectPath isEqualToString:@""];
     if (isPathEmpty) {
         [self showAlertWithStyle:NSWarningAlertStyle title:NSLocalizedString(@"MissingPathErrorTitle", @"") subtitle:NSLocalizedString(@"ProjectFolderPathErrorMessage", @"")];
-
+        
         return;
     }
-
+    
     // Check the path exists
-	BOOL pathExists = [[NSFileManager defaultManager] fileExistsAtPath:projectPath];
+    BOOL pathExists = [[NSFileManager defaultManager] fileExistsAtPath:projectPath];
     if (!pathExists) {
         [self showAlertWithStyle:NSWarningAlertStyle title:NSLocalizedString(@"InvalidPathErrorTitle", @"") subtitle:NSLocalizedString(@"ProjectFolderPathErrorMessage", @"")];
         
         return;
     }
-    
     // Reset
     [self.results removeAllObjects];
     [self.resultsTableView reloadData];
-    
-    // Start the ui
-    [self setUIEnabled:NO];
     
     // Pass search folder
     self.searcher.projectPath = projectPath;
@@ -153,8 +215,14 @@ static NSString *const kTableColumnImageShortName = @"ImageShortName";
     self.searcher.jsonSearch = [self.jsonCheckbox state];
     self.searcher.enumFilter = [self.enumCheckbox state];
     
-    // Start the search
-    [self.searcher start];
+    if (self.unusedCheckbox.state) {
+        [self.searcher startSearchClass];
+    } else {
+        // Start the ui
+        [self setUIEnabled:NO];
+        // Start the search of unused image
+        [self.searcher startSearchImage];
+    }
 }
 
 #pragma mark - Helpers
@@ -205,7 +273,17 @@ static NSString *const kTableColumnImageShortName = @"ImageShortName";
     [_jsonCheckbox setEnabled:state];
     [_browseButton setEnabled:state];
     [_pathTextField setEnabled:state];
+    [_enumCheckbox setEnabled:state];
+    [_unusedCheckbox setEnabled:state];
+    
     [_exportButton setHidden:!state];
+    
+//    if (!state) {
+//        [_exportButton setHidden:state];
+//        [_exportButton setTitle:@"stop"];
+//    } else {
+//        [_exportButton setTitle:@"export"];
+//    }
 }
 
 #pragma mark - <NSTableViewDelegate>
@@ -241,6 +319,8 @@ static NSString *const kTableColumnImageShortName = @"ImageShortName";
 
 - (void)searcher:(Searcher *)searcher didFindUnusedImage:(NSString *)imagePath {
     
+    NSLock *insertLock = [[NSLock alloc] init];
+    [insertLock lock];
     // Add and reload
     [self.results addObject:imagePath];
     
@@ -249,6 +329,7 @@ static NSString *const kTableColumnImageShortName = @"ImageShortName";
     
     // Scroll to the bottom
     [self scrollTableView:self.resultsTableView toBottom:YES];
+    [insertLock unlock];
 }
 
 - (void)searcher:(Searcher *)searcher didFinishSearch:(NSArray *)results {
@@ -267,15 +348,15 @@ static NSString *const kTableColumnImageShortName = @"ImageShortName";
     [self setUIEnabled:YES];
 }
 
-- (void)searcher:(Searcher *)searcher allImageCount:(NSInteger)count
+- (void)searcher:(Searcher *)searcher allFileCount:(NSInteger)count
 {
     _allCount = count;
     [self.statusLabel setStringValue:[NSString stringWithFormat:@"%zd",count]];
 }
 
--(void)searcher:(Searcher *)searcher didSearchAt:(NSInteger)index
+-(void)searcher:(Searcher *)searcher didSearchAt:(NSInteger)index remainOperation:(NSInteger)operatrionNum
 {
-    [self.statusLabel setStringValue:[NSString stringWithFormat:@"%zd/%zd",_allCount,index]];
+    [self.statusLabel setStringValue:[NSString stringWithFormat:@"%zd/%zd/%zd",_allCount,index,operatrionNum]];
 }
 
 @end

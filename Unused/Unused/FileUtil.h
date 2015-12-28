@@ -42,6 +42,18 @@
 + (NSString *)stringFromFileSize:(int)fileSize;
 
 /**
+ *  Return all the class paths in the provided directory
+ *
+ *  This includes searching for image files like
+ *  .m
+ *
+ *  @param directoryPath The search path
+ *
+ *  @return The array of class paths
+ */
++ (NSArray *)classFilesInDirectory:(NSString *)directoryPath;
+
+/**
  *  Return all the image paths in the provided directory
  *
  *  This includes searching for image files like

@@ -57,9 +57,9 @@
  */
 - (void)searcher:(Searcher *)searcher didFinishSearch:(NSArray *)results;
 
-- (void)searcher:(Searcher *)searcher didSearchAt:(NSInteger)index;
+- (void)searcher:(Searcher *)searcher didSearchAt:(NSInteger)index remainOperation:(NSInteger)operatrionNum;
 
-- (void)searcher:(Searcher *)searcher allImageCount:(NSInteger)count;
+- (void)searcher:(Searcher *)searcher allFileCount:(NSInteger)count;
 
 @end
 
@@ -142,7 +142,12 @@
 /**
  *  Start the search
  */
-- (void)start;
+- (void)startSearchImage;
+
+/**
+ *  Start the search
+ */
+- (void)startSearchClass;
 
 /**
  *  Stop the search

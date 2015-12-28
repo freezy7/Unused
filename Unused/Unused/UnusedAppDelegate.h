@@ -133,6 +133,11 @@
  */
 @property (assign) IBOutlet NSButton *enumCheckbox;
 
+/**
+ *  The enum checkbox
+ */
+@property (assign) IBOutlet NSButton *unusedCheckbox;
+
 // ------ Actions ------
 /**
  *  The browse for xcode project action

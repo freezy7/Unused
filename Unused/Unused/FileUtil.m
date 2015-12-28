@@ -47,6 +47,17 @@
     return([NSString stringWithFormat:@"%1.1f GB",floatSize]);
 }
 
++ (NSArray *)classFilesInDirectory:(NSString *)directoryPath
+{
+    NSMutableArray *class = [NSMutableArray array];
+    
+    // .m
+    NSArray *mclass = [self searchDirectory:directoryPath forFiletype:@"m"];
+    [class addObjectsFromArray:mclass];
+    
+    return class;
+}
+
 + (NSArray *)imageFilesInDirectory:(NSString *)directoryPath {
     
     NSMutableArray *images = [NSMutableArray array];
